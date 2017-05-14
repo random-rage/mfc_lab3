@@ -1,40 +1,28 @@
 #include "Hash.h"
 
-Hash::Hash(size_t size)
+hash_t Hash::calc(u_char *buf)
 {
-	len = size;
+#ifdef HASH_32
+	return XXH32(buf, BUF_LEN, HASH_SEED);
+#else
+	return XXH64(buf, BUF_LEN, HASH_SEED);
+#endif
 }
 
-u_int Hash::FAQ6(u_char *str)
+void Hash::print(hash_t h)
 {
-	u_int hash = 0;
-	for (size_t i = 0; i < len; i++) {
-		hash += str[i];
-		hash += (hash << 10);
-		hash ^= (hash >> 6);
-	}
-	hash += (hash << 3);
-	hash ^= (hash >> 11);
-	hash += (hash << 15);
-	
-	return hash;
+#ifdef HASH_32
+	printf("%08x", h);
+#else
+	printf("%16lx", h);
+#endif
 }
 
-u_int Hash::LY(u_char *str)
+void Hash::println(hash_t h)
 {
-	u_int hash = 0;
-	for (size_t i = 0; i < len; i++) {
-		hash = (hash * 1664525) + str[i] + 1013904223;
-	}
-	return hash;
-}
-
-size_t Hash::getLen() const
-{
-	return len;
-}
-
-void Hash::setLen(size_t len)
-{
-	Hash::len = len;
+#ifdef HASH_32
+	printf("%08x\n", h);
+#else
+	printf("%16lx\n", h);
+#endif
 }

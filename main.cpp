@@ -1,107 +1,90 @@
-#define BUF_LEN 16
-#define THREAD_COUNT 4
-#define TABLE_SIZE 65536
+#include "main.h"
+#include "Hash.h"
+#include "Random.h"
 
 #include <iostream>
-#include <random>
 #include <thread>
-
-#include "Hash.h"
 
 using namespace std;
 
-struct Int128
-{
-	uint_fast64_t hi, lo;
-};
+static hash_t target;           // Хэш, коллизию для которого надо найти
+static Random *rnd;             // ГПСЧ для заполнения буфера
 
-union Buffer
-{
-	Int128 val;
-	u_char buf[BUF_LEN];
-};
+static uint_fast64_t counter;   // Счётчик посчитанных хэшей для статистики
+static bool done;               // Флаг "коллизия найдена"
 
-struct TableCell
-{
-	Buffer val;
-	u_int hash;
-};
-
-static unsigned long long counter;
-static u_int target;
-static bool done;
-static Hash *h;
-static mt19937_64 rnd;
-
+// Поиск коллизии по хэшу заданной строки
 void bruteforce()
 {
-	Buffer buffer;
-	u_int result;
+	Buffer buffer;          // Буфер, заполняемый рандомными числами
 	do
 	{
-		if (done)
-			return;
+		if (done)           // Если нашли коллизию где-то в другом потоке,
+			return;         // Завершаем поток
 		
-		buffer.val.hi = rnd();
-		buffer.val.lo = rnd();
-		
-		result = h->LY(buffer.buf);
+		rnd->fill(&buffer);                     // Рандомно заполняем буфер
 		counter++;
 	}
-	while (target != result);
+	// Считаем хэш от буфера и проверяем на совпадение с требуемым
+	while (target != Hash::calc(buffer.buf));   // Повторяем, пока хэши не совпадут
 	
-	done = true;
-	cout << "\nFound collision \"src -> hash\":" << endl;
-	
-	for (size_t i = 0; i < BUF_LEN; ++i)
-		printf("%02x", buffer.buf[i]);
-	
-	printf(" -> %08x\n", result);
+	// Нашли коллизию, сообщим об этом
+	done = true;            // Установим флаг, чтобы завершить остальные потоки
+	cout << endl << "Found collision: ";
+	buffer.print();         // Выводим рандомный буфер, который привёл к коллизии
 }
 
+// Поиск коллизии по таблицам
 void findPair()
 {
-	TableCell left[TABLE_SIZE], right[TABLE_SIZE];
+	// Таблицы "паролей" и их "подделок"
+	Table *left  = new Table[TABLE_SIZE];
+	Table *right = new Table[TABLE_SIZE];
 	do
 	{
+		// Генерация таблиц
 		for (size_t i = 0; i < TABLE_SIZE; ++i)
 		{
 			if (done)
-				return;
+				break;
 			
-			left[i].val.val.hi = rnd();
-			left[i].val.val.lo = rnd();
-			left[i].hash = h->LY(left[i].val.buf);
-			right[i].val.val.hi = rnd();
-			right[i].val.val.lo = rnd();
-			right[i].hash = h->LY(right[i].val.buf);
-			counter++;
+			// Генерируем пароль и его подделку
+			rnd->fill(&(left[i].b));
+			rnd->fill(&(right[i].b));
+			
+			// Считаем хэши от них
+			left[i].h = Hash::calc(left[i].b.buf);
+			right[i].h = Hash::calc(right[i].b.buf);
+			
+			counter += 2;
 		}
+		
+		// Поиск коллизии по таблицам
 		for (size_t i = 0; i < TABLE_SIZE; ++i)
 			for (size_t j = 0; j < TABLE_SIZE; ++j)
 			{
-				if (done)
-					return;
-				
-				if (left[i].hash == right[j].hash)
+				if (done)       // Если нашли коллизию где-то в другом потоке,
 				{
-					if (left[i].val.val.hi == right[j].val.val.hi &&
-					    left[i].val.val.lo == right[j].val.val.lo)
-						continue;
+					delete left, right; // Освобождаем память
+					return;             // Завершаем поток
+				}
+				
+				if (left[i].h == right[j].h)  // Нашли коллизию?
+				{
+					if (left[i].b == right[j].b)    // Если совпали значения буферов,
+						continue;                   // То не нашли
 					
-					done = true;
-					cout << "\nFound collision \"hash -> src1 : src2\":" << endl;
+					// Нашли коллизию, сообщим об этом
+					done = true;    // Установим флаг, чтобы завершить остальные потоки
+					cout << endl << "Found collision \"hash -> src1 : src2\":" << endl;
 					
-					printf("%08x -> ", left[i].hash);
+					Hash::print(left[i].h);
+					cout << " -> ";
 					
-					for (size_t k = 0; k < BUF_LEN; ++k)
-						printf("%02x", left[i].val.buf[k]);
-					
+					left[i].b.print();
 					cout << " : ";
 					
-					for (size_t k = 0; k < BUF_LEN; ++k)
-						printf("%02x", right[j].val.buf[k]);
-					
+					right[j].b.print();
 					cout << endl;
 				}
 			}
@@ -111,33 +94,58 @@ void findPair()
 
 int main()
 {
-	string str;
-	cout << "Enter string to find collision:" << endl;
-	cin >> str;
+	int mode = 0;
+	cout << "Choose mode:" << endl
+	     << "1. Bruteforce" << endl
+	     << "2. Find pair by table" << endl
+	     << "0. Exit" << endl;
+	cin >> mode;
 	
-	h = new Hash(str.size());
-	rnd.seed(time(0));
-	
-	target = h->LY((unsigned char *)str.c_str());
-	h->setLen(BUF_LEN);
+	rnd = new Random(time(0));
 	done = false;
+	counter = 0;
 	
-	printf("Target hash: %08x\n", target);
-	
-	time_t start = time(0);
+	time_t start;
 	thread t[THREAD_COUNT];
-	for (size_t i = 0; i < THREAD_COUNT; ++i)
-		t[i] = thread(findPair);
 	
-	cout << "Hashes tested:" << endl;
-	while (!done)
+	switch (mode)
 	{
-		cout << counter << "\r";
-		for (size_t i = 0; i < 100000; ++i)
+		case 1: // Поиск коллизии по заданной строке
+		{
+			string str;
+			cout << "Enter string to find collision:" << endl;
+			cin >> str;
+			
+			target = Hash::calc((u_char *)str.c_str());
+			
+			cout << "Target hash: ";
+			Hash::println(target);
+			start = time(0);
+			
+			for (size_t i = 0; i < THREAD_COUNT; ++i)
+				t[i] = thread(bruteforce);
+			break;
+		}
+		case 2: // Поиск коллизии по таблицам "паролей" и их "подделок"
+			cout << "Searching for password pair that makes collision..." << endl;
+			start = time(0);
+			
+			for (size_t i = 0; i < THREAD_COUNT; ++i)
+				t[i] = thread(findPair);
+			break;
+			
+		default:
+			return 0;
+	}
+	cout << "Hashes tested:" << endl;
+	while (!done)                           // Ждём, пока в каком-нибудь потоке не найдётся коллизия
+	{
+		cout << counter << "\r";            // Топовый индикатор статистики
+		for (size_t i = 0; i < 100000; ++i) // Костыль вместо неработающего sleep_for
 			this_thread::yield();
 	}
-	printf("Time elapsed: %lds\nTotal hashes tested: %lld", time(0) - start, counter);
+	printf("\nTime elapsed: %lds\nTotal hashes tested: %ld\n", time(0) - start, counter);
 
-	delete h;
+	delete rnd;
 	return 0;
 }
