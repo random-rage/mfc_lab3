@@ -1,5 +1,6 @@
 #define BUF_LEN 16
 #define THREAD_COUNT 4
+#define TABLE_SIZE 65536
 
 #include <iostream>
 #include <random>
@@ -9,15 +10,21 @@
 
 using namespace std;
 
-struct Int64
+struct Int128
 {
 	uint_fast64_t hi, lo;
 };
 
 union Buffer
 {
-	Int64 val;
+	Int128 val;
 	u_char buf[BUF_LEN];
+};
+
+struct TableCell
+{
+	Buffer val;
+	u_int hash;
 };
 
 static unsigned long long counter;
@@ -46,10 +53,60 @@ void bruteforce()
 	done = true;
 	cout << "\nFound collision \"src -> hash\":" << endl;
 	
-	for (int i = 0; i < BUF_LEN; ++i)
+	for (size_t i = 0; i < BUF_LEN; ++i)
 		printf("%02x", buffer.buf[i]);
 	
 	printf(" -> %08x\n", result);
+}
+
+void findPair()
+{
+	TableCell left[TABLE_SIZE], right[TABLE_SIZE];
+	do
+	{
+		for (size_t i = 0; i < TABLE_SIZE; ++i)
+		{
+			if (done)
+				return;
+			
+			left[i].val.val.hi = rnd();
+			left[i].val.val.lo = rnd();
+			left[i].hash = h->LY(left[i].val.buf);
+			right[i].val.val.hi = rnd();
+			right[i].val.val.lo = rnd();
+			right[i].hash = h->LY(right[i].val.buf);
+			counter++;
+		}
+		for (size_t i = 0; i < TABLE_SIZE; ++i)
+			for (size_t j = 0; j < TABLE_SIZE; ++j)
+			{
+				if (done)
+					return;
+				
+				if (left[i].hash == right[j].hash)
+				{
+					if (left[i].val.val.hi == right[j].val.val.hi &&
+					    left[i].val.val.lo == right[j].val.val.lo)
+						continue;
+					
+					done = true;
+					cout << "\nFound collision \"hash -> src1 : src2\":" << endl;
+					
+					printf("%08x -> ", left[i].hash);
+					
+					for (size_t k = 0; k < BUF_LEN; ++k)
+						printf("%02x", left[i].val.buf[k]);
+					
+					cout << " : ";
+					
+					for (size_t k = 0; k < BUF_LEN; ++k)
+						printf("%02x", right[j].val.buf[k]);
+					
+					cout << endl;
+				}
+			}
+	}
+	while (!done);
 }
 
 int main()
@@ -69,8 +126,8 @@ int main()
 	
 	time_t start = time(0);
 	thread t[THREAD_COUNT];
-	for (int i = 0; i < THREAD_COUNT; ++i)
-		t[i] = thread(bruteforce);
+	for (size_t i = 0; i < THREAD_COUNT; ++i)
+		t[i] = thread(findPair);
 	
 	cout << "Hashes tested:" << endl;
 	while (!done)
