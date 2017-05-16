@@ -10,8 +10,9 @@
 using namespace std;
 
 static hash_t target;           // Хэш, коллизию для которого надо найти
+static thread t[THREAD_COUNT];  // Потоки
 static uint_fast64_t counter;   // Счётчик посчитанных хэшей для статистики
-static bool done;               // Флаг остановки вычислений
+static bool stopCalc;           // Флаг остановки вычислений
 
 // Обработчик сигналов ОС
 void signalHandler(int signum)
@@ -20,11 +21,11 @@ void signalHandler(int signum)
 	if (signum == SIGTRAP)
 		cout << "Hashes tested: " << counter << endl;
 	else
-		done = true;
+		stopCalc = true;
 }
 
 // Поиск коллизии по хэшу заданной строки
-void bruteforce()
+void bruteforce(bool &done)
 {
 	Random rnd;             // ГПСЧ для заполнения буфера
 	Buffer buffer;          // Буфер, заполняемый рандомными числами
@@ -34,7 +35,7 @@ void bruteforce()
 			return;         // Завершаем поток
 		
 		rnd.fill(&buffer);                     // Рандомно заполняем буфер
-		counter++;
+		++counter;
 	}
 	// Считаем хэш от буфера и проверяем на совпадение с требуемым
 	while (target != Hash::calc(buffer.buf));   // Повторяем, пока хэши не совпадут
@@ -46,7 +47,7 @@ void bruteforce()
 }
 
 // Поиск коллизии по таблицам
-void findPair()
+void findPair(bool &done)
 {
 	Random rnd;             // ГПСЧ для заполнения буфера
 	// Таблицы "паролей" и их "подделок"
@@ -57,7 +58,7 @@ void findPair()
 		// Генерация таблиц
 		for (size_t i = 0; i < TABLE_SIZE; ++i)
 		{
-			if (done)
+			if (done)       // Если нашли коллизию где-то в другом потоке,
 				break;
 			
 			// Генерируем пароль и его подделку
@@ -68,11 +69,13 @@ void findPair()
 			left[i].h = Hash::calc(left[i].b.buf);
 			right[i].h = Hash::calc(right[i].b.buf);
 			
-			counter += 2;
+			++counter;
 		}
 		
 		// Поиск коллизии по таблицам
 		for (size_t i = 0; i < TABLE_SIZE; ++i)
+		{
+			++counter;
 			for (size_t j = 0; j < TABLE_SIZE; ++j)
 			{
 				if (done)       // Если нашли коллизию где-то в другом потоке,
@@ -83,7 +86,7 @@ void findPair()
 				
 				if (left[i].h == right[j].h)  // Нашли коллизию?
 				{
-					cout << endl << "Hit" << endl;
+					cout << "Hit" << endl;
 					if (left[i].b == right[j].b)    // Если совпали значения буферов,
 						continue;                   // То не нашли
 					
@@ -101,6 +104,7 @@ void findPair()
 					cout << endl;
 				}
 			}
+		}
 	}
 	while (!done);
 }
@@ -118,11 +122,10 @@ int main()
 	     << "0. Exit" << endl;
 	cin >> mode;
 	
-	done = false;
+	stopCalc = false;   // Флаг остановки вычислений
 	counter = 0;
 	
 	time_t start;
-	thread t[THREAD_COUNT];
 	
 	switch (mode)
 	{
@@ -141,7 +144,7 @@ int main()
 			start = time(0);
 			
 			for (size_t i = 0; i < THREAD_COUNT; ++i)
-				t[i] = thread(bruteforce);
+				t[i] = thread(bruteforce, ref(stopCalc));
 			break;
 		}
 		case 2: // Поиск коллизии по таблицам "паролей" и их "подделок"
@@ -150,7 +153,7 @@ int main()
 			start = time(0);
 			
 			for (size_t i = 0; i < THREAD_COUNT; ++i)
-				t[i] = thread(findPair);
+				t[i] = thread(findPair, ref(stopCalc));
 			break;
 			
 		default:
@@ -158,7 +161,8 @@ int main()
 	}
 	
 	cout << "PID = " << ::getpid() << endl;
-	t[0].join();
+	for (size_t i = 0; i < THREAD_COUNT; ++i)
+		t[i].join();
 	
 	printf("\nTime elapsed: %lds\nTotal hashes tested: %ld\n", time(0) - start, counter);
 	return 0;

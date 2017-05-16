@@ -3,7 +3,7 @@ project(Lab3)
 
 set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_FLAGS_RELEASE "-O99")
+set(CMAKE_CXX_FLAGS_RELEASE "-O1")
 set(SOURCE_FILES main.cpp main.h Hash.cpp Hash.h Random.h Random.cpp xxhash.c xxhash.h)
 
 add_executable(Lab3 ${SOURCE_FILES})

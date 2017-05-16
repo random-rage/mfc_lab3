@@ -16,7 +16,7 @@ typedef unsigned int hash_t;
 #else
 
 #define BUF_LEN 32
-#define TABLE_SIZE 262144 / THREAD_COUNT
+#define TABLE_SIZE 107374184 / THREAD_COUNT
 typedef unsigned long int hash_t;
 
 #endif
