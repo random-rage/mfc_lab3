@@ -4,12 +4,24 @@
 
 #include <iostream>
 #include <thread>
+#include <csignal>
+#include <unistd.h>
 
 using namespace std;
 
 static hash_t target;           // Хэш, коллизию для которого надо найти
 static uint_fast64_t counter;   // Счётчик посчитанных хэшей для статистики
-static bool done;               // Флаг "коллизия найдена"
+static bool done;               // Флаг остановки вычислений
+
+// Обработчик сигналов ОС
+void signalHandler(int signum)
+{
+	cout << "\nSignal (" << signum << ") received" << endl;
+	if (signum == SIGTRAP)
+		cout << "Hashes tested: " << counter << endl;
+	else
+		done = true;
+}
 
 // Поиск коллизии по хэшу заданной строки
 void bruteforce()
@@ -71,7 +83,7 @@ void findPair()
 				
 				if (left[i].h == right[j].h)  // Нашли коллизию?
 				{
-					cout << "Hit" << endl;
+					cout << endl << "Hit" << endl;
 					if (left[i].b == right[j].b)    // Если совпали значения буферов,
 						continue;                   // То не нашли
 					
@@ -95,6 +107,10 @@ void findPair()
 
 int main()
 {
+	// Регистрируем обработчики сигналов ОС
+	signal(SIGINT, signalHandler);
+	signal(SIGTRAP, signalHandler);
+	
 	int mode = 0;
 	cout << "Choose mode:" << endl
 	     << "1. Bruteforce" << endl
@@ -120,6 +136,8 @@ int main()
 			
 			cout << "Target hash: ";
 			Hash::println(target);
+			cout << "Searching for collision..." << endl;
+			
 			start = time(0);
 			
 			for (size_t i = 0; i < THREAD_COUNT; ++i)
@@ -128,6 +146,7 @@ int main()
 		}
 		case 2: // Поиск коллизии по таблицам "паролей" и их "подделок"
 			cout << "Searching for password pair that makes collision..." << endl;
+			
 			start = time(0);
 			
 			for (size_t i = 0; i < THREAD_COUNT; ++i)
@@ -137,13 +156,10 @@ int main()
 		default:
 			return 0;
 	}
-	cout << "Hashes tested:" << endl;
-	while (!done)                           // Ждём, пока в каком-нибудь потоке не найдётся коллизия
-	{
-		cout << counter << "\r";            // Топовый индикатор статистики
-		for (size_t i = 0; i < 100000; ++i) // Костыль вместо неработающего sleep_for
-			this_thread::yield();
-	}
+	
+	cout << "PID = " << ::getpid() << endl;
+	t[0].join();
+	
 	printf("\nTime elapsed: %lds\nTotal hashes tested: %ld\n", time(0) - start, counter);
 	return 0;
 }
