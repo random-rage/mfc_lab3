@@ -7,8 +7,6 @@
 #define THREAD_COUNT 4
 
 // Битность хэша: HASH_32 или HASH_64
-#define HASH_32
-
 #ifdef HASH_32
 
 #define BUF_LEN 16

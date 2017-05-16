@@ -1,7 +1,11 @@
 #include "Random.h"
 
-Random::Random(u_long seed)
+Random::Random()
 {
+	FILE *f = fopen("/dev/urandom", "r");
+	u_long seed;
+	fread(&seed, sizeof(u_long), 1, f);
+	fclose(f);
 	rnd.seed(seed);
 }
 

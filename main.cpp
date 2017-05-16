@@ -8,21 +8,20 @@
 using namespace std;
 
 static hash_t target;           // Хэш, коллизию для которого надо найти
-static Random *rnd;             // ГПСЧ для заполнения буфера
-
 static uint_fast64_t counter;   // Счётчик посчитанных хэшей для статистики
 static bool done;               // Флаг "коллизия найдена"
 
 // Поиск коллизии по хэшу заданной строки
 void bruteforce()
 {
+	Random rnd;             // ГПСЧ для заполнения буфера
 	Buffer buffer;          // Буфер, заполняемый рандомными числами
 	do
 	{
 		if (done)           // Если нашли коллизию где-то в другом потоке,
 			return;         // Завершаем поток
 		
-		rnd->fill(&buffer);                     // Рандомно заполняем буфер
+		rnd.fill(&buffer);                     // Рандомно заполняем буфер
 		counter++;
 	}
 	// Считаем хэш от буфера и проверяем на совпадение с требуемым
@@ -37,6 +36,7 @@ void bruteforce()
 // Поиск коллизии по таблицам
 void findPair()
 {
+	Random rnd;             // ГПСЧ для заполнения буфера
 	// Таблицы "паролей" и их "подделок"
 	Table *left  = new Table[TABLE_SIZE];
 	Table *right = new Table[TABLE_SIZE];
@@ -49,8 +49,8 @@ void findPair()
 				break;
 			
 			// Генерируем пароль и его подделку
-			rnd->fill(&(left[i].b));
-			rnd->fill(&(right[i].b));
+			rnd.fill(&(left[i].b));
+			rnd.fill(&(right[i].b));
 			
 			// Считаем хэши от них
 			left[i].h = Hash::calc(left[i].b.buf);
@@ -71,6 +71,7 @@ void findPair()
 				
 				if (left[i].h == right[j].h)  // Нашли коллизию?
 				{
+					cout << "Hit" << endl;
 					if (left[i].b == right[j].b)    // Если совпали значения буферов,
 						continue;                   // То не нашли
 					
@@ -101,7 +102,6 @@ int main()
 	     << "0. Exit" << endl;
 	cin >> mode;
 	
-	rnd = new Random(time(0));
 	done = false;
 	counter = 0;
 	
@@ -145,7 +145,5 @@ int main()
 			this_thread::yield();
 	}
 	printf("\nTime elapsed: %lds\nTotal hashes tested: %ld\n", time(0) - start, counter);
-
-	delete rnd;
 	return 0;
 }

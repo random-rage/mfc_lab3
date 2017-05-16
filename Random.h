@@ -12,7 +12,7 @@ private:
 	mt19937_64 rnd;
 	
 public:
-	Random(u_long seed);
+	Random();
 	
 	void fill(Buffer *buf);
 };
