@@ -6,26 +6,35 @@
 // Число потоков
 #define THREAD_COUNT 4
 
-// Битность хэша: HASH_32 или HASH_64
+// Битность хэша: HASH_16, HASH_32 или HASH_64
+#ifdef HASH_16
+#define BUF_LEN 8
+#define TABLE_SIZE 256
+typedef unsigned short int hash_t;
+#endif
+
 #ifdef HASH_32
-
 #define BUF_LEN 16
-#define TABLE_SIZE 65536 / THREAD_COUNT
+#define TABLE_SIZE 65536
 typedef unsigned int hash_t;
+#endif
 
-#else
-
+#ifdef HASH_64
 #define BUF_LEN 32
-#define TABLE_SIZE 107374184 / THREAD_COUNT
+#define TABLE_SIZE 4194304
 typedef unsigned long int hash_t;
-
 #endif
 
 struct BigInt               // Структура для быстрого заполнения буфера
 {
-	uint_fast64_t p1, p2;
+	uint_fast64_t p1;
+	
+#ifdef HASH_32
+	uint_fast64_t p2;
+#endif
+
 #ifdef HASH_64
-	uint_fast64_t p3, p4;
+	uint_fast64_t p2, p3, p4;
 #endif
 };
 
@@ -36,9 +45,14 @@ union Buffer                // Буфер, в который кладётся р
 	
 	bool operator==(const Buffer& other) const
 	{
-		return val.p1 == other.val.p1 && val.p2 == other.val.p2
+		return val.p1 == other.val.p1
+		
+#ifdef HASH_32
+			&& val.p2 == other.val.p2
+#endif
+
 #ifdef HASH_64
-		       && val.p3 == other.val.p3 && val.p4 == other.val.p4
+			&& val.p2 == other.val.p2 && val.p3 == other.val.p3 && val.p4 == other.val.p4
 #endif
 				;
 	}

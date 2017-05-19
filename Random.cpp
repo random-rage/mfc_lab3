@@ -12,8 +12,13 @@ Random::Random()
 void Random::fill(Buffer *buf)
 {
 	buf->val.p1 = rnd();
+	
+	#ifdef HASH_32
 	buf->val.p2 = rnd();
+	#endif
+	
 	#ifdef HASH_64
+	buf->val.p2 = rnd();
 	buf->val.p3 = rnd();
 	buf->val.p4 = rnd();
 	#endif

@@ -6,6 +6,9 @@
 #include <thread>
 #include <csignal>
 #include <unistd.h>
+#include <chrono>
+
+#define clock chrono::high_resolution_clock
 
 using namespace std;
 
@@ -122,10 +125,10 @@ int main()
 	     << "0. Exit" << endl;
 	cin >> mode;
 	
-	stopCalc = false;   // Флаг остановки вычислений
-	counter = 0;
+	stopCalc = false;   // Устанавливаем флаг остановки вычислений
+	counter = 0;        // Сбрасываем счётчик
 	
-	time_t start;
+	chrono::time_point<clock> start;    // Время начала вычислений
 	
 	switch (mode)
 	{
@@ -141,7 +144,7 @@ int main()
 			Hash::println(target);
 			cout << "Searching for collision..." << endl;
 			
-			start = time(0);
+			start = clock::now();
 			
 			for (size_t i = 0; i < THREAD_COUNT; ++i)
 				t[i] = thread(bruteforce, ref(stopCalc));
@@ -150,7 +153,7 @@ int main()
 		case 2: // Поиск коллизии по таблицам "паролей" и их "подделок"
 			cout << "Searching for password pair that makes collision..." << endl;
 			
-			start = time(0);
+			start = clock::now();
 			
 			for (size_t i = 0; i < THREAD_COUNT; ++i)
 				t[i] = thread(findPair, ref(stopCalc));
@@ -164,6 +167,9 @@ int main()
 	for (size_t i = 0; i < THREAD_COUNT; ++i)
 		t[i].join();
 	
-	printf("\nTime elapsed: %lds\nTotal hashes tested: %ld\n", time(0) - start, counter);
+	chrono::time_point<clock> end =	clock::now();   // Время окончания вычислений
+	int elapsed = chrono::duration_cast<chrono::microseconds>(end - start).count();
+	
+	printf("\nTime elapsed: %d microseconds\nTotal hashes tested: %ld\n", elapsed, counter);
 	return 0;
 }
